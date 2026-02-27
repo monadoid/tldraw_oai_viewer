@@ -1,7 +1,7 @@
 import { DurableObjectSqliteSyncWrapper, SQLiteSyncStorage, TLSocketRoom } from '@tldraw/sync-core'
 import {
 	createTLSchema,
-	// defaultBindingSchemas,
+	defaultBindingSchemas,
 	defaultShapeSchemas,
 	TLRecord,
 } from '@tldraw/tlschema'
@@ -11,7 +11,7 @@ import { AutoRouter, error, IRequest } from 'itty-router'
 // add custom shapes and bindings here if needed:
 const schema = createTLSchema({
 	shapes: { ...defaultShapeSchemas },
-	// bindings: { ...defaultBindingSchemas },
+	bindings: { ...defaultBindingSchemas },
 })
 
 // Each whiteboard room is hosted in a Durable Object.

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Tldraw, type Editor, type TLComponents, type TLStore } from 'tldraw'
+import { Tldraw, defaultShapeUtils, type Editor, type TLComponents, type TLStore } from 'tldraw'
 import 'tldraw/tldraw.css'
 import { SidePanel } from './components/SidePanel'
 import { parseOpenApiToReviewSpec } from './review-ir/parse-openapi'
@@ -12,7 +12,7 @@ import { ReviewProvider, useReviewContext } from './state/ReviewContext'
 import v3YamlRaw from '../../../openapi.v3.yaml?raw'
 import v4YamlRaw from '../../../openapi.v4.yaml?raw'
 
-const customShapeUtils = [RouteCardShapeUtil, SchemaNodeShapeUtil]
+const shapeUtils = [...defaultShapeUtils, RouteCardShapeUtil, SchemaNodeShapeUtil]
 
 function NoStylePanel() {
 	return null
@@ -65,7 +65,7 @@ function AppInner({ store, onEditorReady }: { store?: TLStore; onEditorReady?: (
 		<div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
 			<div style={{ flex: 1, position: 'relative' }}>
 				<Tldraw
-					shapeUtils={customShapeUtils}
+					shapeUtils={shapeUtils}
 					components={customComponents}
 					onMount={handleMount}
 					store={store}

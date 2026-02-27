@@ -1,13 +1,18 @@
 import { useSync } from '@tldraw/sync'
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { getBookmarkPreview } from '../getBookmarkPreview'
 import { multiplayerAssetStore } from '../multiplayerAssetStore'
 import { App } from '../api-review/src/App'
+import { defaultShapeUtils } from 'tldraw'
 import { RouteCardShapeUtil } from '../api-review/src/shapes/RouteCardShapeUtil'
 import { SchemaNodeShapeUtil } from '../api-review/src/shapes/SchemaNodeShapeUtil'
 
 export function Room() {
 	const roomId = 'api-review'
+	const shapeUtils = useMemo(
+		() => [...defaultShapeUtils, RouteCardShapeUtil, SchemaNodeShapeUtil],
+		[]
+	)
 
 	// Create a store connected to multiplayer.
 	const synced = useSync({
@@ -15,7 +20,7 @@ export function Room() {
 		uri: `${window.location.origin}/api/connect/${roomId}`,
 		// ...and how to handle static assets like images & videos
 		assets: multiplayerAssetStore,
-		shapeUtils: [RouteCardShapeUtil, SchemaNodeShapeUtil],
+		shapeUtils,
 	})
 
 	return (
