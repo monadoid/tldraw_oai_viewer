@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+import { computeRouteDiff, diffStateColor, findMatchingRoute, getFieldDiffState, routeHeaderColor, type RouteDiffResult } from '../review-ir/diff'
 import type { ReviewRoute, SpecSide } from '../review-ir/types'
 import { CARD_HEADER_HEIGHT, SECTION_HEADER_HEIGHT } from '../shapes/layout-constants'
 import { useReviewContext } from '../state/ReviewContext'
@@ -9,14 +11,6 @@ const METHOD_COLORS: Record<string, string> = {
 	put: '#f59e0b',
 	patch: '#f59e0b',
 	delete: '#ef4444',
-}
-
-interface RouteCardContentProps {
-	operationId: string
-	specSide: SpecSide
-	method: string
-	width: number
-	height: number
 }
 
 const SECTION_HEADER: React.CSSProperties = {
@@ -31,6 +25,14 @@ const SECTION_HEADER: React.CSSProperties = {
 	fontFamily: 'system-ui, -apple-system, sans-serif',
 }
 
+interface RouteCardContentProps {
+	operationId: string
+	specSide: SpecSide
+	method: string
+	width: number
+	height: number
+}
+
 export function RouteCardContent({
 	operationId,
 	specSide,
@@ -40,8 +42,23 @@ export function RouteCardContent({
 }: RouteCardContentProps) {
 	const { v3Spec, v4Spec } = useReviewContext()
 	const spec = specSide === 'v3' ? v3Spec : v4Spec
+	const otherSpec = specSide === 'v3' ? v4Spec : v3Spec
 
-	if (!spec) {
+	const route = spec?.routes.find((r) => r.operationId === operationId)
+
+	const diff = useMemo(() => {
+		if (!route) return null
+		if (specSide === 'v4') {
+			const v3Route = findMatchingRoute(v3Spec, operationId)
+			return computeRouteDiff(v3Route, route)
+		} else {
+			const v4Route = findMatchingRoute(v4Spec, operationId)
+			if (!v4Route) return null
+			return computeV3Diff(route, v4Route)
+		}
+	}, [route, v3Spec, v4Spec, operationId, specSide])
+
+	if (!spec || !route) {
 		return (
 			<div style={cardShell(specSide, width, height)}>
 				<div style={{ padding: 16, color: '#9ca3af' }}>Loading...</div>
@@ -49,30 +66,31 @@ export function RouteCardContent({
 		)
 	}
 
-	const route = spec.routes.find((r) => r.operationId === operationId)
-	if (!route) {
-		return (
-			<div style={cardShell(specSide, width, height)}>
-				<div style={{ padding: 16, color: '#ef4444' }}>Route not found: {operationId}</div>
-			</div>
-		)
-	}
-
 	return (
 		<div style={cardShell(specSide, width, height)}>
-			<CardHeader route={route} method={method} specSide={specSide} />
+			<CardHeader route={route} method={method} specSide={specSide} diff={diff} />
 			<div style={{ overflowY: 'auto', flex: 1 }}>
 				{route.parameters.length > 0 && (
 					<Section title="Parameters">
 						{route.parameters.map((param) => (
-							<FieldRow key={param.id} field={param} specSide={specSide} />
+							<FieldRow
+								key={param.id}
+								field={param}
+								specSide={specSide}
+								diffState={diff ? getFieldDiffState(diff, param.name, 'parameters') : undefined}
+							/>
 						))}
 					</Section>
 				)}
 				{route.requestBody && (
 					<Section title="Request body">
 						{route.requestBody.schema.children?.map((field) => (
-							<FieldRow key={field.id} field={field} specSide={specSide} />
+							<FieldRow
+								key={field.id}
+								field={field}
+								specSide={specSide}
+								diffState={diff ? getFieldDiffState(diff, field.name, 'requestBody') : undefined}
+							/>
 						)) ?? (
 							<FieldRow field={route.requestBody.schema} specSide={specSide} />
 						)}
@@ -81,7 +99,12 @@ export function RouteCardContent({
 				{route.responses.map((resp) => (
 					<Section key={resp.statusCode} title={`Response ${resp.statusCode}`}>
 						{resp.schema?.children?.map((field) => (
-							<FieldRow key={field.id} field={field} specSide={specSide} />
+							<FieldRow
+								key={field.id}
+								field={field}
+								specSide={specSide}
+								diffState={diff ? getFieldDiffState(diff, field.name, resp.statusCode) : undefined}
+							/>
 						)) ?? (
 							resp.schema && <FieldRow field={resp.schema} specSide={specSide} />
 						)}
@@ -92,14 +115,45 @@ export function RouteCardContent({
 	)
 }
 
+/**
+ * Compute diff from the v3 perspective: mirror the v4 diff but swap added↔removed.
+ */
+function computeV3Diff(v3Route: ReviewRoute, v4Route: ReviewRoute): RouteDiffResult {
+	const v4Diff = computeRouteDiff(v3Route, v4Route)
+	return {
+		...v4Diff,
+		parameters: mirrorDiffMap(v4Diff.parameters),
+		requestBody: mirrorDiffMap(v4Diff.requestBody),
+		responses: new Map(
+			[...v4Diff.responses.entries()].map(([k, v]) => [k, mirrorDiffMap(v)])
+		),
+	}
+}
+
+function mirrorDiffMap(diffMap: Map<string, import('../review-ir/diff').DiffState>): Map<string, import('../review-ir/diff').DiffState> {
+	const result = new Map<string, import('../review-ir/diff').DiffState>()
+	for (const [name, state] of diffMap) {
+		if (state === 'added') {
+			continue
+		} else if (state === 'removed') {
+			result.set(name, 'removed')
+		} else {
+			result.set(name, state)
+		}
+	}
+	return result
+}
+
 function CardHeader({
 	route,
 	method,
 	specSide,
+	diff,
 }: {
 	route: ReviewRoute
 	method: string
 	specSide: SpecSide
+	diff: RouteDiffResult | null
 }) {
 	const { selectRoute } = useReviewContext()
 	const methodColor = METHOD_COLORS[method.toLowerCase()] ?? '#6b7280'
@@ -108,6 +162,9 @@ function CardHeader({
 		e.stopPropagation()
 		selectRoute(route, specSide)
 	}
+
+	const headerBg = diff ? routeHeaderColor(diff) : undefined
+	const defaultBg = specSide === 'v3' ? '#fafafa' : '#f0f9ff'
 
 	return (
 		<div
@@ -118,7 +175,7 @@ function CardHeader({
 				height: CARD_HEADER_HEIGHT,
 				boxSizing: 'border-box',
 				borderBottom: '2px solid #e5e7eb',
-				background: specSide === 'v3' ? '#fafafa' : '#f0f9ff',
+				background: headerBg ?? defaultBg,
 				flexShrink: 0,
 				cursor: 'pointer',
 			}}

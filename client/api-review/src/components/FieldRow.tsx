@@ -1,3 +1,5 @@
+import type { DiffState } from '../review-ir/diff'
+import { diffStateColor } from '../review-ir/diff'
 import type { ReviewFieldNode, SpecSide } from '../review-ir/types'
 import { FIELD_ROW_HEIGHT } from '../shapes/layout-constants'
 import { useReviewContext } from '../state/ReviewContext'
@@ -6,6 +8,7 @@ interface FieldRowProps {
 	field: ReviewFieldNode
 	specSide: SpecSide
 	indent?: number
+	diffState?: DiffState
 }
 
 const BADGE_STYLE: React.CSSProperties = {
@@ -16,13 +19,15 @@ const BADGE_STYLE: React.CSSProperties = {
 	lineHeight: '14px',
 }
 
-export function FieldRow({ field, specSide, indent = 0 }: FieldRowProps) {
+export function FieldRow({ field, specSide, indent = 0, diffState }: FieldRowProps) {
 	const { selectField } = useReviewContext()
 
 	const handleClick = (e: React.MouseEvent) => {
 		e.stopPropagation()
 		selectField(field, specSide)
 	}
+
+	const bgColor = diffState ? diffStateColor(diffState) : undefined
 
 	return (
 		<div
@@ -41,6 +46,7 @@ export function FieldRow({ field, specSide, indent = 0 }: FieldRowProps) {
 				fontSize: 12,
 				fontFamily: 'system-ui, -apple-system, sans-serif',
 				lineHeight: '20px',
+				background: bgColor,
 			}}
 			title={field.description || undefined}
 		>

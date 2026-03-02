@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { computeRouteDiff, diffStateColor, findMatchingRoute, getFieldDiffState, type DiffState, type RouteDiffResult } from '../review-ir/diff'
 import { drillDown, navigateBack } from '../review-ir/side-panel'
 import type { ReviewFieldNode, ReviewRoute } from '../review-ir/types'
 import { useReviewContext } from '../state/ReviewContext'
@@ -62,6 +63,12 @@ export function SidePanel() {
 	const isRouteMode = mode === 'route' && currentRoute
 	const isObjectWithChildren = !isRouteMode && currentField.typeKind === 'object' && currentField.children && currentField.children.length > 0
 
+	const routeDiff = useMemo(() => {
+		if (!currentRoute) return null
+		const v3Route = findMatchingRoute(v3Spec, currentRoute.operationId)
+		return computeRouteDiff(v3Route, currentRoute)
+	}, [currentRoute, v3Spec])
+
 	return (
 		<div
 			style={panelContainer}
@@ -85,6 +92,7 @@ export function SidePanel() {
 					<RouteDetailView
 						route={currentRoute!}
 						editable={editable}
+						diff={routeDiff}
 						onDrillDown={handleDrillDown}
 						onChangeRoutePath={(path) => editChangeRoutePath(currentRoute!.id, path)}
 						onChangeRouteMethod={(method) => editChangeRouteMethod(currentRoute!.id, method)}
@@ -143,6 +151,7 @@ export function SidePanel() {
 function RouteDetailView({
 	route,
 	editable,
+	diff,
 	onDrillDown,
 	onChangeRoutePath,
 	onChangeRouteMethod: _onChangeRouteMethod,
@@ -160,6 +169,7 @@ function RouteDetailView({
 }: {
 	route: ReviewRoute
 	editable: boolean
+	diff: RouteDiffResult | null
 	onDrillDown: (field: ReviewFieldNode) => void
 	onChangeRoutePath: (path: string) => void
 	onChangeRouteMethod: (method: string) => void
@@ -175,31 +185,35 @@ function RouteDetailView({
 	onRemoveEnumValue: (fieldId: string, val: string) => void
 	onRemoveUnionVariant: (fieldId: string, idx: number) => void
 }) {
-	const allFields: { section: string; fields: ReviewFieldNode[]; parentId?: string }[] = []
+	const allSections: { section: string; diffKey: string; fields: ReviewFieldNode[]; parentId?: string }[] = []
 
 	if (route.parameters.length > 0) {
-		allFields.push({ section: 'Parameters', fields: route.parameters })
+		allSections.push({ section: 'Parameters', diffKey: 'parameters', fields: route.parameters })
 	}
 	if (route.requestBody?.schema.children) {
-		allFields.push({
+		allSections.push({
 			section: 'Request body',
+			diffKey: 'requestBody',
 			fields: route.requestBody.schema.children,
 			parentId: route.requestBody.schema.id,
 		})
 	}
 	for (const resp of route.responses) {
 		if (resp.schema?.children) {
-			allFields.push({
+			allSections.push({
 				section: `Response ${resp.statusCode}`,
+				diffKey: resp.statusCode,
 				fields: resp.schema.children,
 				parentId: resp.schema.id,
 			})
 		}
 	}
 
+	const pathBg = diff?.pathChanged ? '#fefce8' : undefined
+
 	return (
 		<div style={{ fontSize: 12, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-			<div style={{ marginBottom: 10 }}>
+			<div style={{ marginBottom: 10, background: pathBg, padding: pathBg ? '4px 6px' : undefined, borderRadius: 4 }}>
 				<div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', marginBottom: 4 }}>Route path</div>
 				{editable ? (
 					<InlineEditText
@@ -222,7 +236,7 @@ function RouteDetailView({
 				</div>
 			</div>
 
-			{allFields.map(({ section, fields, parentId }) => (
+			{allSections.map(({ section, diffKey, fields, parentId }) => (
 				<div key={section} style={{ marginBottom: 10 }}>
 					<div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, borderBottom: '1px solid #e5e7eb', paddingBottom: 3 }}>
 						{section} ({fields.length})
@@ -231,6 +245,7 @@ function RouteDetailView({
 						const isPrimitive = child.typeKind === 'primitive'
 						const isEnum = child.typeKind === 'enum'
 						const isInlineEditable = isPrimitive || isEnum
+						const fieldDiff = diff ? getFieldDiffState(diff, child.name, diffKey) : undefined
 
 						if (isInlineEditable) {
 							return (
@@ -238,6 +253,7 @@ function RouteDetailView({
 									key={child.id}
 									field={child}
 									editable={editable}
+									diffState={fieldDiff}
 									onRename={(name) => onRename(child.id, name)}
 									onChangeType={(type) => onChangeType(child.id, type)}
 									onToggleRequired={() => onToggleRequired(child.id)}
@@ -254,6 +270,7 @@ function RouteDetailView({
 								key={child.id}
 								field={child}
 								editable={editable}
+								diffState={fieldDiff}
 								onClick={() => onDrillDown(child)}
 								onRemove={() => parentId ? onRemoveProperty(parentId, child.name) : undefined}
 							/>
@@ -370,6 +387,7 @@ function ObjectPropertiesView({
 function PropertyCard({
 	field,
 	editable,
+	diffState,
 	onRename,
 	onChangeType,
 	onToggleRequired,
@@ -380,6 +398,7 @@ function PropertyCard({
 }: {
 	field: ReviewFieldNode
 	editable: boolean
+	diffState?: DiffState
 	onRename: (name: string) => void
 	onChangeType: (type: string) => void
 	onToggleRequired: () => void
@@ -388,8 +407,9 @@ function PropertyCard({
 	onAddEnumValue?: (val: string) => void
 	onRemoveEnumValue?: (val: string) => void
 }) {
+	const bg = diffState ? diffStateColor(diffState) : undefined
 	return (
-		<div style={propertyCardStyle}>
+		<div style={{ ...propertyCardStyle, background: bg ?? propertyCardStyle.background }}>
 			<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
 				{editable ? (
 					<InlineEditText value={field.displayName} onCommit={onRename} style={{ fontWeight: 600, color: '#111827', fontSize: 13 }} />
@@ -439,16 +459,19 @@ function PropertyCard({
 function DrillDownCard({
 	field,
 	editable,
+	diffState,
 	onClick,
 	onRemove,
 }: {
 	field: ReviewFieldNode
 	editable: boolean
+	diffState?: DiffState
 	onClick: () => void
 	onRemove: () => void
 }) {
+	const bg = diffState ? diffStateColor(diffState) : undefined
 	return (
-		<div style={{ ...propertyCardStyle, cursor: 'pointer', padding: '8px 10px' }} onClick={onClick}>
+		<div style={{ ...propertyCardStyle, cursor: 'pointer', padding: '8px 10px', background: bg ?? propertyCardStyle.background }} onClick={onClick}>
 			<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
 					<span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{field.displayName}</span>
