@@ -1,6 +1,8 @@
-# tldraw sync server
+# API Review Canvas
 
-This is a production-ready backend for [tldraw sync](https://tldraw.dev/docs/sync).
+OpenAPI review canvas built on tldraw for visual API contract review.
+
+Based on the [tldraw sync](https://tldraw.dev/docs/sync) production backend.
 
 - Your client-side tldraw-based app can be served from anywhere you want.
 - This backend uses [Cloudflare Workers](https://developers.cloudflare.com/workers/), and will need
