@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc && vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"test:persistence": "node scripts/persistence-harness.mjs"
 	},
 	"dependencies": {
 		"@scalar/openapi-parser": "^0.24.10",
@@ -29,6 +30,7 @@
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react-swc": "^3.10.2",
 		"concurrently": "^9.1.2",
+		"playwright": "^1.58.2",
 		"typescript": "^5.8.3",
 		"vite": "^7.0.1",
 		"wrangler": "^4.37.1"

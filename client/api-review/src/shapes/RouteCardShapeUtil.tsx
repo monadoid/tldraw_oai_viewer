@@ -2,21 +2,16 @@ import {
 	BaseBoxShapeUtil,
 	HTMLContainer,
 	RecordProps,
-	T,
 } from 'tldraw'
 import { RouteCardContent } from '../components/RouteCardContent'
+import { routeCardShapeMigrations, routeCardShapeProps } from './customShapeSchemas'
 import type { RouteCardProps, RouteCardShape } from './route-card-types'
 import { ROUTE_CARD_TYPE } from './route-card-types'
 
 export class RouteCardShapeUtil extends BaseBoxShapeUtil<RouteCardShape> {
 	static override type = ROUTE_CARD_TYPE
-	static override props: RecordProps<RouteCardShape> = {
-		w: T.number,
-		h: T.number,
-		specSide: T.string as any,
-		operationId: T.string,
-		method: T.string,
-	}
+	static override props: RecordProps<RouteCardShape> = routeCardShapeProps
+	static override migrations = routeCardShapeMigrations
 
 	getDefaultProps(): RouteCardProps {
 		return {

@@ -125,9 +125,9 @@ export function buildSchemaLayoutForRoute(
 				h: nodeHeight,
 				specSide,
 				title: item.target.title,
-				subtitle: item.target.subtitle,
-				schemaName: item.target.schemaName,
-				fieldId: item.target.schemaName ? undefined : item.target.node.id,
+				...(item.target.subtitle !== undefined ? { subtitle: item.target.subtitle } : {}),
+				...(item.target.schemaName !== undefined ? { schemaName: item.target.schemaName } : {}),
+				...(item.target.schemaName === undefined ? { fieldId: item.target.node.id } : {}),
 			},
 		})
 

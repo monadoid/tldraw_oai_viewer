@@ -1,19 +1,13 @@
-import { BaseBoxShapeUtil, HTMLContainer, RecordProps, T } from 'tldraw'
+import { BaseBoxShapeUtil, HTMLContainer, RecordProps } from 'tldraw'
 import { SchemaNodeContent } from '../components/SchemaNodeContent'
+import { schemaNodeShapeMigrations, schemaNodeShapeProps } from './customShapeSchemas'
 import type { SchemaNodeProps, SchemaNodeShape } from './schema-node-types'
 import { SCHEMA_NODE_TYPE } from './schema-node-types'
 
 export class SchemaNodeShapeUtil extends BaseBoxShapeUtil<SchemaNodeShape> {
 	static override type = SCHEMA_NODE_TYPE
-	static override props: RecordProps<SchemaNodeShape> = {
-		w: T.number,
-		h: T.number,
-		specSide: T.string as any,
-		title: T.string,
-		subtitle: T.string.optional(),
-		schemaName: T.string.optional(),
-		fieldId: T.string.optional(),
-	}
+	static override props: RecordProps<SchemaNodeShape> = schemaNodeShapeProps
+	static override migrations = schemaNodeShapeMigrations
 
 	getDefaultProps(): SchemaNodeProps {
 		return {

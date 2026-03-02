@@ -4,15 +4,16 @@ import { getBookmarkPreview } from '../getBookmarkPreview'
 import { multiplayerAssetStore } from '../multiplayerAssetStore'
 import { App } from '../api-review/src/App'
 import { defaultShapeUtils } from 'tldraw'
+import { ReviewStateShapeUtil } from '../api-review/src/shapes/ReviewStateShapeUtil'
 import { RouteCardShapeUtil } from '../api-review/src/shapes/RouteCardShapeUtil'
 import { SchemaNodeShapeUtil } from '../api-review/src/shapes/SchemaNodeShapeUtil'
 
 export function Room() {
-	const roomId = 'api-review'
+	const roomId = new URLSearchParams(window.location.search).get('room') ?? 'api-review'
 	const resetDocumentRef = useRef<(() => Promise<void>) | null>(null)
 	const [isResetting, setIsResetting] = useState(false)
 	const shapeUtils = useMemo(
-		() => [...defaultShapeUtils, RouteCardShapeUtil, SchemaNodeShapeUtil],
+		() => [...defaultShapeUtils, RouteCardShapeUtil, SchemaNodeShapeUtil, ReviewStateShapeUtil],
 		[]
 	)
 
@@ -25,6 +26,14 @@ export function Room() {
 		shapeUtils,
 	})
 
+	useEffect(() => {
+		if (synced.status === 'error') {
+			console.error('[sync-status] error', synced.error)
+			return
+		}
+		console.log('[sync-status]', synced.status)
+	}, [synced.status])
+
 	const handleReset = useCallback(() => {
 		if (!resetDocumentRef.current || isResetting) return
 		setIsResetting(true)
@@ -35,15 +44,23 @@ export function Room() {
 
 	return (
 		<RoomWrapper roomId={roomId} onReset={handleReset} isResetting={isResetting}>
-			<App
-				store={synced.store}
-				onEditorReady={(editor) => {
-					editor.registerExternalAssetHandler('url', getBookmarkPreview)
-				}}
-				onResetReady={(resetDocument) => {
-					resetDocumentRef.current = resetDocument
-				}}
-			/>
+			{synced.status === 'synced-remote' ? (
+				<App
+					store={synced.store}
+					onEditorReady={(editor) => {
+						;(window as Window & { __apiReviewEditor?: typeof editor }).__apiReviewEditor =
+							editor
+						editor.registerExternalAssetHandler('url', getBookmarkPreview)
+					}}
+					onResetReady={(resetDocument) => {
+						resetDocumentRef.current = resetDocument
+					}}
+				/>
+			) : synced.status === 'error' ? (
+				<div style={{ padding: 16, fontFamily: 'Inter, sans-serif' }}>Sync error: {synced.error.message}</div>
+			) : (
+				<div style={{ padding: 16, fontFamily: 'Inter, sans-serif' }}>Connecting to sync…</div>
+			)}
 		</RoomWrapper>
 	)
 }
