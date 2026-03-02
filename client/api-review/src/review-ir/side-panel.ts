@@ -1,5 +1,5 @@
 import { generateTypeSummary } from './type-summary'
-import type { ReviewFieldNode, ReviewSchema, ReviewSpec, SidePanelState, SpecSide } from './types'
+import type { ReviewFieldNode, ReviewRoute, ReviewSchema, ReviewSpec, SidePanelState, SpecSide } from './types'
 
 /**
  * Search the entire spec tree for a field node by ID.
@@ -53,6 +53,53 @@ export function findFieldById(spec: ReviewSpec, fieldId: string): ReviewFieldNod
 }
 
 /**
+ * Search for a route by ID.
+ */
+export function findRouteById(spec: ReviewSpec, routeId: string): ReviewRoute | null {
+	return spec.routes.find((r) => r.id === routeId) ?? null
+}
+
+/**
+ * Change a route's path. Returns a new spec with the updated route.
+ */
+export function changeRoutePath(
+	spec: ReviewSpec,
+	routeId: string,
+	newPath: string
+): ReviewSpec {
+	let found = false
+	const newRoutes = spec.routes.map((route) => {
+		if (route.id === routeId) {
+			found = true
+			return { ...route, path: newPath }
+		}
+		return route
+	})
+	if (!found) return spec
+	return { ...spec, routes: newRoutes }
+}
+
+/**
+ * Change a route's HTTP method. Returns a new spec with the updated route.
+ */
+export function changeRouteMethod(
+	spec: ReviewSpec,
+	routeId: string,
+	newMethod: string
+): ReviewSpec {
+	let found = false
+	const newRoutes = spec.routes.map((route) => {
+		if (route.id === routeId) {
+			found = true
+			return { ...route, method: newMethod }
+		}
+		return route
+	})
+	if (!found) return spec
+	return { ...spec, routes: newRoutes }
+}
+
+/**
  * Create initial side panel state for a selected field.
  */
 export function openSidePanel(
@@ -61,8 +108,36 @@ export function openSidePanel(
 ): SidePanelState {
 	return {
 		side,
+		mode: 'field',
 		currentField: field,
 		breadcrumbs: [{ label: field.name, fieldNode: field }],
+		editable: side === 'v4',
+	}
+}
+
+/**
+ * Create side panel state for a selected route (shows all fields).
+ */
+export function openRouteSidePanel(
+	route: ReviewRoute,
+	side: SpecSide
+): SidePanelState {
+	const dummyField: ReviewFieldNode = {
+		id: `route-root-${route.id}`,
+		name: route.path,
+		displayName: route.path,
+		typeKind: 'object',
+		typeSummary: 'route',
+		required: false,
+		nullable: false,
+		location: 'request',
+	}
+	return {
+		side,
+		mode: 'route',
+		currentField: dummyField,
+		currentRoute: route,
+		breadcrumbs: [{ label: route.path, fieldNode: dummyField }],
 		editable: side === 'v4',
 	}
 }
@@ -77,7 +152,9 @@ export function drillDown(
 ): SidePanelState {
 	return {
 		...state,
+		mode: 'field',
 		currentField: targetField,
+		currentRoute: state.currentRoute,
 		breadcrumbs: [
 			...state.breadcrumbs,
 			{ label: targetField.name, fieldNode: targetField },
@@ -94,8 +171,10 @@ export function navigateBack(state: SidePanelState): SidePanelState {
 	const newBreadcrumbs = state.breadcrumbs.slice(0, -1)
 	const previousEntry = newBreadcrumbs[newBreadcrumbs.length - 1]
 
+	const isBackToRoute = newBreadcrumbs.length === 1 && state.currentRoute
 	return {
 		...state,
+		mode: isBackToRoute ? 'route' : 'field',
 		currentField: previousEntry.fieldNode,
 		breadcrumbs: newBreadcrumbs,
 	}

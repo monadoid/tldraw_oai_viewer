@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { drillDown, navigateBack } from '../review-ir/side-panel'
-import type { ReviewFieldNode } from '../review-ir/types'
+import type { ReviewFieldNode, ReviewRoute } from '../review-ir/types'
 import { useReviewContext } from '../state/ReviewContext'
 
 const PANEL_WIDTH = 380
@@ -32,9 +32,14 @@ export function SidePanel() {
 		}
 	}, [editorRef])
 
+	const {
+		editChangeRoutePath,
+		editChangeRouteMethod,
+	} = useReviewContext()
+
 	if (!sidePanelState) return null
 
-	const { currentField, breadcrumbs, side, editable } = sidePanelState
+	const { currentField, currentRoute, breadcrumbs, side, editable, mode } = sidePanelState
 	const spec = side === 'v3' ? v3Spec : v4Spec
 
 	const handleDrillDown = (field: ReviewFieldNode) => {
@@ -54,7 +59,8 @@ export function SidePanel() {
 
 	const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
-	const isObjectWithChildren = currentField.typeKind === 'object' && currentField.children && currentField.children.length > 0
+	const isRouteMode = mode === 'route' && currentRoute
+	const isObjectWithChildren = !isRouteMode && currentField.typeKind === 'object' && currentField.children && currentField.children.length > 0
 
 	return (
 		<div
@@ -75,7 +81,26 @@ export function SidePanel() {
 				canGoBack={breadcrumbs.length > 1}
 			/>
 			<div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-				{isObjectWithChildren ? (
+				{isRouteMode ? (
+					<RouteDetailView
+						route={currentRoute!}
+						editable={editable}
+						onDrillDown={handleDrillDown}
+						onChangeRoutePath={(path) => editChangeRoutePath(currentRoute!.id, path)}
+						onChangeRouteMethod={(method) => editChangeRouteMethod(currentRoute!.id, method)}
+						onRename={editRenameField}
+						onChangeType={editChangeFieldType}
+						onToggleRequired={editToggleRequired}
+						onToggleNullable={editToggleNullable}
+						onChangeRefTarget={editChangeRefTarget}
+						onRemoveProperty={editRemoveObjectProperty}
+						onDeleteField={editDeleteField}
+						onAddProperty={editAddObjectProperty}
+						onAddEnumValue={editAddEnumValue}
+						onRemoveEnumValue={editRemoveEnumValue}
+						onRemoveUnionVariant={editRemoveUnionVariant}
+					/>
+				) : isObjectWithChildren ? (
 					<ObjectPropertiesView
 						parentField={currentField}
 						editable={editable}
@@ -111,6 +136,144 @@ export function SidePanel() {
 			</div>
 		</div>
 	)
+}
+
+// ---- Route detail view: shows route path + all fields across sections ----
+
+function RouteDetailView({
+	route,
+	editable,
+	onDrillDown,
+	onChangeRoutePath,
+	onChangeRouteMethod: _onChangeRouteMethod,
+	onRename,
+	onChangeType,
+	onToggleRequired,
+	onToggleNullable,
+	onChangeRefTarget: _onChangeRefTarget,
+	onRemoveProperty,
+	onDeleteField,
+	onAddProperty,
+	onAddEnumValue,
+	onRemoveEnumValue,
+	onRemoveUnionVariant: _onRemoveUnionVariant,
+}: {
+	route: ReviewRoute
+	editable: boolean
+	onDrillDown: (field: ReviewFieldNode) => void
+	onChangeRoutePath: (path: string) => void
+	onChangeRouteMethod: (method: string) => void
+	onRename: (fieldId: string, newName: string) => void
+	onChangeType: (fieldId: string, newType: string) => void
+	onToggleRequired: (fieldId: string) => void
+	onToggleNullable: (fieldId: string) => void
+	onChangeRefTarget: (fieldId: string, newRef: string) => void
+	onRemoveProperty: (parentFieldId: string, propertyName: string) => void
+	onDeleteField: (fieldId: string) => void
+	onAddProperty: (parentFieldId: string, prop: ReviewFieldNode) => void
+	onAddEnumValue: (fieldId: string, val: string) => void
+	onRemoveEnumValue: (fieldId: string, val: string) => void
+	onRemoveUnionVariant: (fieldId: string, idx: number) => void
+}) {
+	const allFields: { section: string; fields: ReviewFieldNode[]; parentId?: string }[] = []
+
+	if (route.parameters.length > 0) {
+		allFields.push({ section: 'Parameters', fields: route.parameters })
+	}
+	if (route.requestBody?.schema.children) {
+		allFields.push({
+			section: 'Request body',
+			fields: route.requestBody.schema.children,
+			parentId: route.requestBody.schema.id,
+		})
+	}
+	for (const resp of route.responses) {
+		if (resp.schema?.children) {
+			allFields.push({
+				section: `Response ${resp.statusCode}`,
+				fields: resp.schema.children,
+				parentId: resp.schema.id,
+			})
+		}
+	}
+
+	return (
+		<div style={{ fontSize: 12, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+			<div style={{ marginBottom: 10 }}>
+				<div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', marginBottom: 4 }}>Route path</div>
+				{editable ? (
+					<InlineEditText
+						value={route.path}
+						onCommit={onChangeRoutePath}
+						style={{ fontFamily: 'monospace', fontWeight: 600, color: '#111827', fontSize: 14 }}
+					/>
+				) : (
+					<span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#111827', fontSize: 14 }}>{route.path}</span>
+				)}
+				<div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+					<span style={{
+						fontSize: 10, fontWeight: 700, color: '#fff',
+						background: METHOD_COLORS[route.method] ?? '#6b7280',
+						padding: '1px 6px', borderRadius: 3, textTransform: 'uppercase', fontFamily: 'monospace',
+					}}>
+						{route.method}
+					</span>
+					{route.summary && <span style={{ fontSize: 11, color: '#6b7280' }}>{route.summary}</span>}
+				</div>
+			</div>
+
+			{allFields.map(({ section, fields, parentId }) => (
+				<div key={section} style={{ marginBottom: 10 }}>
+					<div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, borderBottom: '1px solid #e5e7eb', paddingBottom: 3 }}>
+						{section} ({fields.length})
+					</div>
+					{fields.map((child) => {
+						const isPrimitive = child.typeKind === 'primitive'
+						const isEnum = child.typeKind === 'enum'
+						const isInlineEditable = isPrimitive || isEnum
+
+						if (isInlineEditable) {
+							return (
+								<PropertyCard
+									key={child.id}
+									field={child}
+									editable={editable}
+									onRename={(name) => onRename(child.id, name)}
+									onChangeType={(type) => onChangeType(child.id, type)}
+									onToggleRequired={() => onToggleRequired(child.id)}
+									onToggleNullable={() => onToggleNullable(child.id)}
+									onDelete={() => onDeleteField(child.id)}
+									onAddEnumValue={isEnum ? (val) => onAddEnumValue(child.id, val) : undefined}
+									onRemoveEnumValue={isEnum ? (val) => onRemoveEnumValue(child.id, val) : undefined}
+								/>
+							)
+						}
+
+						return (
+							<DrillDownCard
+								key={child.id}
+								field={child}
+								editable={editable}
+								onClick={() => onDrillDown(child)}
+								onRemove={() => parentId ? onRemoveProperty(parentId, child.name) : undefined}
+							/>
+						)
+					})}
+					{editable && parentId && (
+						<AddPropertyForm onAdd={(prop) => onAddProperty(parentId, prop)} />
+					)}
+				</div>
+			))}
+		</div>
+	)
+}
+
+const METHOD_COLORS: Record<string, string> = {
+	get: '#22c55e',
+	post: '#3b82f6',
+	put: '#f59e0b',
+	patch: '#f59e0b',
+	delete: '#ef4444',
 }
 
 // ---- Object properties view: shows all children inline ----

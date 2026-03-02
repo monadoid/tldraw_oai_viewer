@@ -7,8 +7,12 @@ import {
 	addUnionVariant,
 	changeFieldType,
 	changeRefTarget,
+	changeRoutePath,
+	changeRouteMethod,
 	deleteField,
 	findFieldById,
+	findRouteById,
+	openRouteSidePanel,
 	openSidePanel,
 	removeEnumValue,
 	removeObjectProperty,
@@ -19,6 +23,7 @@ import {
 } from '../review-ir/side-panel'
 import type {
 	ReviewFieldNode,
+	ReviewRoute,
 	ReviewSpec,
 	SidePanelState,
 	SpecSide,
@@ -31,8 +36,11 @@ interface ReviewContextValue {
 	setV4Spec: (spec: ReviewSpec) => void
 	sidePanelState: SidePanelState | null
 	selectField: (field: ReviewFieldNode, side: SpecSide) => void
+	selectRoute: (route: ReviewRoute, side: SpecSide) => void
 	closeSidePanel: () => void
 	setSidePanelState: (state: SidePanelState | null) => void
+	editChangeRoutePath: (routeId: string, newPath: string) => void
+	editChangeRouteMethod: (routeId: string, newMethod: string) => void
 	editRenameField: (fieldId: string, newName: string) => void
 	editChangeFieldType: (fieldId: string, newType: string) => void
 	editToggleRequired: (fieldId: string) => void
@@ -61,6 +69,10 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 		setSidePanelState(openSidePanel(field, side))
 	}, [])
 
+	const selectRoute = useCallback((route: ReviewRoute, side: SpecSide) => {
+		setSidePanelState(openRouteSidePanel(route, side))
+	}, [])
+
 	const closeSidePanel = useCallback(() => {
 		setSidePanelState(null)
 	}, [])
@@ -74,11 +86,19 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 
 				setSidePanelState((prevPanel) => {
 					if (!prevPanel || prevPanel.side !== 'v4') return prevPanel
+
+					let refreshedRoute = prevPanel.currentRoute
+					if (refreshedRoute) {
+						refreshedRoute = findRouteById(updated, refreshedRoute.id) ?? refreshedRoute
+					}
+
 					const refreshedField = findFieldById(updated, prevPanel.currentField.id)
-					if (!refreshedField) return prevPanel
+					if (!refreshedField && !refreshedRoute) return prevPanel
+
 					return {
 						...prevPanel,
-						currentField: refreshedField,
+						currentField: refreshedField ?? prevPanel.currentField,
+						currentRoute: refreshedRoute,
 						breadcrumbs: prevPanel.breadcrumbs.map((bc) => {
 							const refreshedBc = findFieldById(updated, bc.fieldNode.id)
 							if (!refreshedBc) return bc
@@ -93,6 +113,14 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 		[]
 	)
 
+	const editChangeRoutePath = useCallback(
+		(routeId: string, newPath: string) => applyV4Edit((s) => changeRoutePath(s, routeId, newPath)),
+		[applyV4Edit]
+	)
+	const editChangeRouteMethod = useCallback(
+		(routeId: string, newMethod: string) => applyV4Edit((s) => changeRouteMethod(s, routeId, newMethod)),
+		[applyV4Edit]
+	)
 	const editRenameField = useCallback(
 		(fieldId: string, newName: string) => applyV4Edit((s) => renameField(s, fieldId, newName)),
 		[applyV4Edit]
@@ -160,8 +188,11 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 				setV4Spec,
 				sidePanelState,
 				selectField,
+				selectRoute,
 				closeSidePanel,
 				setSidePanelState,
+				editChangeRoutePath,
+				editChangeRouteMethod,
 				editRenameField,
 				editChangeFieldType,
 				editToggleRequired,

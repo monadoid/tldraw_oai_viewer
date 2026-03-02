@@ -135,12 +135,16 @@ export interface BreadcrumbEntry {
 	fieldNode: ReviewFieldNode
 }
 
-/** Side panel state for editing/inspecting a field. */
+/** Side panel state for editing/inspecting a field or route. */
 export interface SidePanelState {
 	/** Which side is being inspected. */
 	side: SpecSide
-	/** The currently displayed field node. */
+	/** Panel mode: 'field' for single field, 'route' for full route view. */
+	mode: 'field' | 'route'
+	/** The currently displayed field node (used in 'field' mode and drill-down). */
 	currentField: ReviewFieldNode
+	/** The currently displayed route (used in 'route' mode). */
+	currentRoute?: ReviewRoute
 	/** Navigation breadcrumbs (back stack). */
 	breadcrumbs: BreadcrumbEntry[]
 	/** Whether editing is allowed (true for v4). */

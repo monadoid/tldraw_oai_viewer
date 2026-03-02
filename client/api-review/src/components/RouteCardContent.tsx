@@ -3,20 +3,20 @@ import { CARD_HEADER_HEIGHT, SECTION_HEADER_HEIGHT } from '../shapes/layout-cons
 import { useReviewContext } from '../state/ReviewContext'
 import { FieldRow } from './FieldRow'
 
-interface RouteCardContentProps {
-	operationId: string
-	specSide: SpecSide
-	method: string
-	width: number
-	height: number
-}
-
 const METHOD_COLORS: Record<string, string> = {
 	get: '#22c55e',
 	post: '#3b82f6',
 	put: '#f59e0b',
 	patch: '#f59e0b',
 	delete: '#ef4444',
+}
+
+interface RouteCardContentProps {
+	operationId: string
+	specSide: SpecSide
+	method: string
+	width: number
+	height: number
 }
 
 const SECTION_HEADER: React.CSSProperties = {
@@ -101,10 +101,18 @@ function CardHeader({
 	method: string
 	specSide: SpecSide
 }) {
+	const { selectRoute } = useReviewContext()
 	const methodColor = METHOD_COLORS[method.toLowerCase()] ?? '#6b7280'
+
+	const handleClick = (e: React.MouseEvent) => {
+		e.stopPropagation()
+		selectRoute(route, specSide)
+	}
 
 	return (
 		<div
+			onClick={handleClick}
+			onPointerDown={(e) => e.stopPropagation()}
 			style={{
 				padding: '8px 10px',
 				height: CARD_HEADER_HEIGHT,
@@ -112,6 +120,7 @@ function CardHeader({
 				borderBottom: '2px solid #e5e7eb',
 				background: specSide === 'v3' ? '#fafafa' : '#f0f9ff',
 				flexShrink: 0,
+				cursor: 'pointer',
 			}}
 		>
 			<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
