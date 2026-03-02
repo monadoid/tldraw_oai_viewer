@@ -65,6 +65,7 @@ function AppInner({ store, onEditorReady }: { store?: TLStore; onEditorReady?: (
 		<div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
 			<div style={{ flex: 1, position: 'relative' }}>
 				<Tldraw
+					licenseKey="tldraw-2026-06-10/WyJOVV9HdGJUMSIsWyIqIl0sMTYsIjIwMjYtMDYtMTAiXQ.dqDUHBzMLQhTH0jhrtCFrRLcWWm/9O4KCQShywb+BO9GsL/MaZ4mCAo2IxEoCPfgmOMtO9C+FHiO3j7XbE4Ggg"
 					shapeUtils={shapeUtils}
 					components={customComponents}
 					onMount={handleMount}
