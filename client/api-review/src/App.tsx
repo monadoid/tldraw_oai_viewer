@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Tldraw, defaultShapeUtils, type Editor, type TLComponents, type TLStore } from 'tldraw'
 import 'tldraw/tldraw.css'
 import { SidePanel } from './components/SidePanel'
@@ -22,34 +22,71 @@ const customComponents: TLComponents = {
 	StylePanel: NoStylePanel,
 }
 
-export function App({ store, onEditorReady }: { store?: TLStore; onEditorReady?: (editor: Editor) => void }) {
+type AppProps = {
+	store?: TLStore
+	onEditorReady?: (editor: Editor) => void
+	onResetReady?: (resetDocument: () => Promise<void>) => void
+}
+
+export function App({ store, onEditorReady, onResetReady }: AppProps) {
 	return (
 		<ReviewProvider>
-			<AppInner store={store} onEditorReady={onEditorReady} />
+			<AppInner store={store} onEditorReady={onEditorReady} onResetReady={onResetReady} />
 		</ReviewProvider>
 	)
 }
 
-function AppInner({ store, onEditorReady }: { store?: TLStore; onEditorReady?: (editor: Editor) => void }) {
+function AppInner({
+	store,
+	onEditorReady,
+	onResetReady,
+}: {
+	store?: TLStore
+	onEditorReady?: (editor: Editor) => void
+	onResetReady?: (resetDocument: () => Promise<void>) => void
+}) {
 	const { setV3Spec, setV4Spec, sidePanelState, editorRef } = useReviewContext()
+
+	const loadAndSetSpecs = useCallback(async () => {
+		const [v3, v4] = await Promise.all([
+			parseOpenApiToReviewSpec(v3YamlRaw, 'v3'),
+			parseOpenApiToReviewSpec(v4YamlRaw, 'v4'),
+		])
+		setV3Spec(v3)
+		setV4Spec(v4)
+		return { v3, v4 }
+	}, [setV3Spec, setV4Spec])
+
+	const resetDocument = useCallback(async () => {
+		const editor = editorRef.current
+		if (!editor) return
+
+		const { v3, v4 } = await loadAndSetSpecs()
+		const existingShapeIds = Array.from(editor.getCurrentPageShapeIds())
+		if (existingShapeIds.length > 0) {
+			editor.deleteShapes(existingShapeIds)
+		}
+
+		const pairs = buildRouteCardPairs(v3, v4)
+		layoutRouteCards(editor, pairs, v3, v4)
+		editor.zoomToFit({ animation: { duration: 300 } })
+	}, [editorRef, loadAndSetSpecs])
+
+	useEffect(() => {
+		onResetReady?.(resetDocument)
+	}, [onResetReady, resetDocument])
 
 	const handleMount = useCallback(
 		(editor: Editor) => {
 			editorRef.current = editor
 			const loadSpecs = async () => {
 				try {
-					const [v3, v4] = await Promise.all([
-						parseOpenApiToReviewSpec(v3YamlRaw, 'v3'),
-						parseOpenApiToReviewSpec(v4YamlRaw, 'v4'),
-					])
-
-					setV3Spec(v3)
-					setV4Spec(v4)
-
-					const pairs = buildRouteCardPairs(v3, v4)
-					layoutRouteCards(editor, pairs, v3, v4)
-
-					editor.zoomToFit({ animation: { duration: 300 } })
+					const { v3, v4 } = await loadAndSetSpecs()
+					if (editor.getCurrentPageShapeIds().size === 0) {
+						const pairs = buildRouteCardPairs(v3, v4)
+						layoutRouteCards(editor, pairs, v3, v4)
+						editor.zoomToFit({ animation: { duration: 300 } })
+					}
 				} catch (err) {
 					console.error('Failed to load OpenAPI specs:', err)
 				}
@@ -58,7 +95,7 @@ function AppInner({ store, onEditorReady }: { store?: TLStore; onEditorReady?: (
 			void loadSpecs()
 			onEditorReady?.(editor)
 		},
-		[editorRef, onEditorReady, setV3Spec, setV4Spec]
+		[editorRef, loadAndSetSpecs, onEditorReady]
 	)
 
 	return (

@@ -1,5 +1,5 @@
 import { useSync } from '@tldraw/sync'
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getBookmarkPreview } from '../getBookmarkPreview'
 import { multiplayerAssetStore } from '../multiplayerAssetStore'
 import { App } from '../api-review/src/App'
@@ -9,6 +9,8 @@ import { SchemaNodeShapeUtil } from '../api-review/src/shapes/SchemaNodeShapeUti
 
 export function Room() {
 	const roomId = 'api-review'
+	const resetDocumentRef = useRef<(() => Promise<void>) | null>(null)
+	const [isResetting, setIsResetting] = useState(false)
 	const shapeUtils = useMemo(
 		() => [...defaultShapeUtils, RouteCardShapeUtil, SchemaNodeShapeUtil],
 		[]
@@ -23,19 +25,40 @@ export function Room() {
 		shapeUtils,
 	})
 
+	const handleReset = useCallback(() => {
+		if (!resetDocumentRef.current || isResetting) return
+		setIsResetting(true)
+		void resetDocumentRef.current().finally(() => {
+			setIsResetting(false)
+		})
+	}, [isResetting])
+
 	return (
-		<RoomWrapper roomId={roomId}>
+		<RoomWrapper roomId={roomId} onReset={handleReset} isResetting={isResetting}>
 			<App
 				store={synced.store}
 				onEditorReady={(editor) => {
 					editor.registerExternalAssetHandler('url', getBookmarkPreview)
+				}}
+				onResetReady={(resetDocument) => {
+					resetDocumentRef.current = resetDocument
 				}}
 			/>
 		</RoomWrapper>
 	)
 }
 
-function RoomWrapper({ children, roomId }: { children: ReactNode; roomId?: string }) {
+function RoomWrapper({
+	children,
+	roomId,
+	onReset,
+	isResetting,
+}: {
+	children: ReactNode
+	roomId?: string
+	onReset: () => void
+	isResetting: boolean
+}) {
 	const [didCopy, setDidCopy] = useState(false)
 
 	useEffect(() => {
@@ -59,6 +82,9 @@ function RoomWrapper({ children, roomId }: { children: ReactNode; roomId?: strin
 				>
 					Copy link
 					{didCopy && <div className="RoomWrapper-copied">Copied!</div>}
+				</button>
+				<button className="RoomWrapper-reset" onClick={onReset} disabled={isResetting}>
+					{isResetting ? 'Resetting…' : 'Reset'}
 				</button>
 			</div>
 			<div className="RoomWrapper-content">{children}</div>

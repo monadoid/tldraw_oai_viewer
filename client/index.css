@@ -82,6 +82,26 @@ body {
 	border: 1px solid var(--black-transparent-lighter);
 }
 
+.RoomWrapper-reset {
+	background: #c62828;
+	border: 1px solid #a91f1f;
+	color: #fff;
+	border-radius: 4px;
+	padding: 4px 12px;
+	height: 24px;
+	cursor: pointer;
+}
+
+.RoomWrapper-reset:hover {
+	background: #b71c1c;
+	border-color: #941818;
+}
+
+.RoomWrapper-reset:disabled {
+	opacity: 0.7;
+	cursor: not-allowed;
+}
+
 .RoomWrapper-content {
 	position: relative;
 	flex: 1;

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { computeRouteDiff, diffStateColor, findMatchingRoute, getFieldDiffState, routeHeaderColor, type RouteDiffResult } from '../review-ir/diff'
+import { computeRouteDiff, findMatchingRoute, getFieldDiffState, routeHeaderColor, type RouteDiffResult } from '../review-ir/diff'
 import type { ReviewRoute, SpecSide } from '../review-ir/types'
 import { CARD_HEADER_HEIGHT, SECTION_HEADER_HEIGHT } from '../shapes/layout-constants'
 import { useReviewContext } from '../state/ReviewContext'
@@ -42,7 +42,6 @@ export function RouteCardContent({
 }: RouteCardContentProps) {
 	const { v3Spec, v4Spec } = useReviewContext()
 	const spec = specSide === 'v3' ? v3Spec : v4Spec
-	const otherSpec = specSide === 'v3' ? v4Spec : v3Spec
 
 	const route = spec?.routes.find((r) => r.operationId === operationId)
 
