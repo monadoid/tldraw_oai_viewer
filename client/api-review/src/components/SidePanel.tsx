@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { computeRouteDiff, diffStateColor, findMatchingRoute, getFieldDiffState, type DiffState, type RouteDiffResult } from '../review-ir/diff'
+import { getRouteParameterSections } from '../review-ir/route-parameter-sections'
 import { drillDown, navigateBack } from '../review-ir/side-panel'
 import type { ReviewFieldNode, ReviewRoute } from '../review-ir/types'
 import { useReviewContext } from '../state/ReviewContext'
@@ -188,7 +189,13 @@ function RouteDetailView({
 	const allSections: { section: string; diffKey: string; fields: ReviewFieldNode[]; parentId?: string }[] = []
 
 	if (route.parameters.length > 0) {
-		allSections.push({ section: 'Parameters', diffKey: 'parameters', fields: route.parameters })
+		for (const section of getRouteParameterSections(route.parameters)) {
+			allSections.push({
+				section: section.title,
+				diffKey: section.diffKey,
+				fields: section.fields,
+			})
+		}
 	}
 	if (route.requestBody?.schema.children) {
 		allSections.push({

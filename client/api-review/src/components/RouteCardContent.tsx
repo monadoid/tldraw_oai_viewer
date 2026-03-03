@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { computeRouteDiff, findMatchingRoute, getFieldDiffState, routeHeaderColor, type RouteDiffResult } from '../review-ir/diff'
+import { getRouteParameterSections } from '../review-ir/route-parameter-sections'
 import type { ReviewRoute, SpecSide } from '../review-ir/types'
 import { CARD_HEADER_HEIGHT, SECTION_HEADER_HEIGHT } from '../shapes/layout-constants'
 import { useReviewContext } from '../state/ReviewContext'
@@ -70,16 +71,24 @@ export function RouteCardContent({
 			<CardHeader route={route} method={method} specSide={specSide} diff={diff} />
 			<div style={{ overflowY: 'auto', flex: 1 }}>
 				{route.parameters.length > 0 && (
-					<Section title="Parameters">
-						{route.parameters.map((param) => (
-							<FieldRow
-								key={param.id}
-								field={param}
-								specSide={specSide}
-								diffState={diff ? getFieldDiffState(diff, param.name, 'parameters') : undefined}
-							/>
+					<>
+						{getRouteParameterSections(route.parameters).map((section) => (
+							<Section key={section.title} title={section.title}>
+								{section.fields.map((param) => (
+									<FieldRow
+										key={param.id}
+										field={param}
+										specSide={specSide}
+										diffState={
+											diff
+												? getFieldDiffState(diff, param.name, section.diffKey)
+												: undefined
+										}
+									/>
+								))}
+							</Section>
 						))}
-					</Section>
+					</>
 				)}
 				{route.requestBody && (
 					<Section title="Request body">

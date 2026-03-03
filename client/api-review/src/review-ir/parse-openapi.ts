@@ -109,6 +109,8 @@ function parseRawYaml(yamlContent: string): any {
 function parseRoutes(doc: any): ReviewRoute[] {
 	const routes: ReviewRoute[] = []
 	const paths = doc.paths
+	const securitySchemes = doc.components?.securitySchemes ?? {}
+	const globalSecurity = doc.security
 	if (!paths) return routes
 
 	for (const [path, pathItem] of Object.entries<any>(paths)) {
@@ -121,10 +123,17 @@ function parseRoutes(doc: any): ReviewRoute[] {
 			const description = operation.description
 			const pathPrefix = computePathPrefix(path)
 
-			const parameters = parseParameters(
-				operation.parameters ?? [],
-				`#/paths/${escapeJsonPointer(path)}/${method}/parameters`
+			const explicitParameters = parseParameters(
+				[...(pathItem.parameters ?? []), ...(operation.parameters ?? [])],
+				`#/paths/${escapeJsonPointer(path)}/${method}`
 			)
+			const securityRequirements =
+				operation.security ?? pathItem.security ?? globalSecurity ?? []
+			const securityHeaderParameters = parseSecurityHeaderParameters(
+				securityRequirements,
+				securitySchemes
+			)
+			const parameters = mergeParameters(explicitParameters, securityHeaderParameters)
 
 			const requestBody = parseRequestBody(
 				operation.requestBody,
@@ -162,13 +171,66 @@ function parseParameters(params: any[], basePath: string): ReviewFieldNode[] {
 			param.name,
 			param.required ?? false,
 			'parameter',
-			`${basePath}/${index}`,
+			`${basePath}/parameters/${index}`,
 			undefined
 		)
 		node.parameterIn = param.in as ParameterIn
 		node.description = param.description ?? schema.description
 		return node
 	})
+}
+
+function parseSecurityHeaderParameters(
+	securityRequirements: any[],
+	securitySchemes: Record<string, any>
+): ReviewFieldNode[] {
+	if (!Array.isArray(securityRequirements) || securityRequirements.length === 0) return []
+
+	const headerParams = new Map<string, ReviewFieldNode>()
+
+	for (const requirement of securityRequirements) {
+		for (const schemeName of Object.keys(requirement ?? {})) {
+			const scheme = securitySchemes[schemeName]
+			if (!scheme || scheme.type !== 'apiKey' || scheme.in !== 'header' || !scheme.name) continue
+
+			const key = String(scheme.name).toLowerCase()
+			if (headerParams.has(key)) continue
+
+			headerParams.set(key, {
+				id: nextFieldId(scheme.name),
+				name: scheme.name,
+				displayName: scheme.name,
+				typeKind: 'primitive',
+				typeSummary: 'string',
+				required: true,
+				nullable: false,
+				location: 'parameter',
+				parameterIn: 'header',
+				description: scheme.description,
+			})
+		}
+	}
+
+	return Array.from(headerParams.values())
+}
+
+function mergeParameters(
+	explicitParameters: ReviewFieldNode[],
+	securityHeaderParameters: ReviewFieldNode[]
+): ReviewFieldNode[] {
+	const existingHeaders = new Set(
+		explicitParameters
+			.filter((param) => param.parameterIn === 'header')
+			.map((param) => param.name.toLowerCase())
+	)
+
+	const merged = [...explicitParameters]
+	for (const headerParam of securityHeaderParameters) {
+		if (!existingHeaders.has(headerParam.name.toLowerCase())) {
+			merged.push(headerParam)
+		}
+	}
+	return merged
 }
 
 function parseRequestBody(requestBody: any, basePath: string): ReviewRequestBody | undefined {
